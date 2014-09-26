@@ -42,13 +42,13 @@ stepGame input game =
          , platforms <- game.platforms
          , state <- game.state}
 
-platform : Float -> Float -> Float -> Form
-platform w h n = rect 100 10 |> filled (rgb 24 0 0) 
-                             |> move(-w / 2 + 100, -h / 2 + (100 * n))
+platform : Float -> Float -> Float -> Int -> Form
+platform w h n tick = rect 50 10 |> filled (rgb 124 200 100) 
+                             |> move(-w / 2 + (20 * n) + 200 + sin((toFloat tick * n) / 300) * 65, -h / 2 + (60 * n))
                              
-platformblah = let (_, l) = foldl (\j (i, acc) -> (i+1, (i + 1) :: acc)) (0, []) (repeat 10 1) in l
+tenToOne = let (_, l) = foldl (\j (i, acc) -> (i+1, (i + 1) :: acc)) (0, []) (repeat 10 1) in l
 
-platforms w h = map (\n -> platform w h n) platformblah
+platforms w h tick = map (\n -> platform w h n tick) tenToOne
 
 
 gameState = foldp stepGame defaultGame input 
@@ -67,13 +67,13 @@ render (w',h') gameState =
       ([ rect w h  |> filled (rgb 174 238 238),
         rect w 50 |> filled (rgb 74 63 141)
                   |> move (0, 24 - h/2),
-        ngon ((round mario.x) % 10) 25.0  |> filled (rgb 24 0 0) 
-                                          |> move(-w / 2 + 300, -h / 2 + 160),
+--        ngon ((round mario.x) % 10) 25.0  |> filled (rgb 24 0 0) 
+--                                          |> move(-w / 2 + 300, -h / 2 + 160),
         toForm (image 35 35 src) |> move (mario.x, mario.y + 62 - h/2)
-      ] ++ (platforms w h))
+      ] ++ (platforms w h gameState.tick))
 
 -- MARIO
-input = let delta = lift (\t -> t/20) (fps 60)
+input = let delta = lift (\t -> t/20) (fps 30)
         in  sampleOn delta (lift2 (,) delta Keyboard.arrows)
 
 main = lift2 render Window.dimensions gameState
