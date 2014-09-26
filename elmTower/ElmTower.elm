@@ -4,7 +4,7 @@ import Color
 
 -- MODELs
 type Platform = { x: Float, y: Float, w: Float, h: Float }
-type Player = { x: Float, y: Float, w: Float, h: Float, vx: Float, vy: Float, dir: String, colour: Color.Color}
+type Player = { x: Float, y: Float, w: Float, h: Float, vx: Float, vy: Float, dir: String, colour: Color.Color, isFalling: Bool}
 
 type Game = {
   tick: Int,
@@ -17,7 +17,7 @@ data State = Waiting | Playing | Dead
 -- initial state
 defaultGame = {
   tick = 0,
-  player = { x=0, y=0, w=35, h=35, vx=0, vy=0, dir="right", colour = (rgb 0 0 0) },
+  player = { x=0, y=0, w=35, h=35, vx=0, vy=0, dir="right", colour = (rgb 0 0 0), isFalling = False},
   platforms = createPlatforms,
   state = Playing }
 
@@ -35,8 +35,8 @@ createPlatforms = map (\n -> {
 --    {x = 90, y = 200, w = 60, h = 10}]
 
 -- update player --
-jump {y} m = if y > 0 then { m | vy <- 6 } else m
-gravity t m = if m.y > 0 then { m | vy <- m.vy - t/4 } else m
+jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m -- , isFalling <- True 
+gravity t m = if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
 physics t m = { m | x <- m.x + t*m.vx , y <- max 0 (m.y + t*m.vy) }
 walk {x} m = { m | vx <- toFloat x * 2
                  , dir <- if | x < 0     -> "left"
@@ -55,15 +55,21 @@ step platforms (dt, keys) =
         let b = {plat |x <- plat.x - plat.w / 2
                       ,y <- plat.y - plat.h / 2}
         in a.x + a.w >= b.x && a.x <= b.x + b.w && a.y + a.h >= b.y && a.y <= b.y + b.h ) platforms
-    in if (isEmpty collidedPlatforms) then {currentPlayer | colour <- (rgb 0 0 0)} else {currentPlayer | y <- currentPlayer.y + 10, colour <- (rgb 255 255 0), vy <- 0 })
+    in if (isEmpty collidedPlatforms) 
+       then {currentPlayer | colour <- (rgb 0 0 0), isFalling <- True} 
+       else {currentPlayer | y <- currentPlayer.y
+                           , colour <- (rgb 255 255 0)
+                           , vy <- 0
+                           , isFalling <- False})
        --a)
   
-  
+stepPlatforms platforms tick = map (\p -> {p | x <- p.x + sin (toFloat tick / 10) * 1 }) platforms
+
 stepGame : (Float, {x: Int, y: Int}) -> Game -> Game
 stepGame input game = 
   { game | tick <- 1 + game.tick
          , player <- step game.platforms input game.player
-         , platforms <- game.platforms
+         , platforms <- stepPlatforms game.platforms game.tick
          , state <- game.state}
 
 renderPlatform : Platform -> Form
