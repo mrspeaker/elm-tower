@@ -4,7 +4,17 @@ import Color
 
 -- MODELs
 type Platform = { x: Float, y: Float, w: Float, h: Float }
-type Player = { x: Float, y: Float, w: Float, h: Float, vx: Float, vy: Float, dir: String, colour: Color.Color, isFalling: Bool}
+
+type Player = { 
+  x: Float, 
+  y: Float, 
+  w: Float, 
+  h: Float, 
+  vx: Float, 
+  vy: Float, 
+  dir: String, 
+  colour: Color.Color, 
+  isFalling: Bool}
 
 type Game = {
   tick: Int,
@@ -16,7 +26,10 @@ type Input = (Float, {x: Int, y: Int})
 
 data State = Waiting | Playing | Dead
 
+range from to = indexedMap (\i el -> from + i) (repeat (to - from) 0) 
+
 -- initial state
+defaultGame: Game
 defaultGame = {
   tick = 0,
   player = { 
@@ -32,12 +45,24 @@ defaultGame = {
   platforms = createPlatforms,
   state = Playing }
 
-
+createPlatforms : [Platform]
 createPlatforms = map (\n -> {
   x = toFloat (30 * n + 10), 
   y = toFloat ((50 * n + 10) % 280),
   w = 60,
   h = 10}) (range 1 11) ++ [{x = 0, y = -38, w = 10000, h = 50}]
+
+isCollided entityA entityB =
+  let 
+      a = {entityA | x <- entityA.x - entityA.w / 2
+                   , y <- entityA.y - entityA.h / 2}
+      b = {entityB | x <- entityB.x - entityB.w / 2
+                   , y <- entityB.y - entityB.h / 2}
+      isLeftGreater = a.x + a.w >= b.x
+      isRightLess = a.x <= b.x + b.w
+      isBottomGreater = a.y + a.h >= b.y
+      isTopLess = a.y <= b.y + b.h
+  in isLeftGreater && isRightLess && isBottomGreater && isTopLess
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m = if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -47,68 +72,49 @@ walk {x} m = { m | vx <- toFloat x * 2
                              | x > 0     -> "right"
                              | otherwise -> m.dir }
 
-renderPlatform : Platform -> Form
-renderPlatform platform = rect platform.w platform.h |> filled (rgb 124 200 100) 
-                                                     |> move (platform.x, platform.y)
-                             
-range from to = indexedMap (\i el -> from + i) (repeat (to - from) 0) 
+-- Player
+playerStateChange: Input -> Player -> Player
+playerStateChange (dt, keys) = jump keys >> gravity dt >> walk keys >> physics dt
 
-renderPlatforms platforms = map (\plat -> renderPlatform plat) platforms
-
-
--- Mario SIgnal
-marioStateChange: Input -> Player -> Player
-marioStateChange (dt, keys) = jump keys >> gravity dt >> walk keys >> physics dt
-
-stepMario : Input -> [Player] -> [Player]
-stepMario input marioStates =
-  let lastestMarioState = head marioStates
+stepPlayer : Input -> [Player] -> [Player]
+stepPlayer input playerStates =
+  let latestPlayerState = head playerStates
       (_ , keys) = input
+  -- If playing, save state else if holding "down" key, then "rewind"
   in (if keys.y >= 0 
-      then [marioStateChange input lastestMarioState] ++ marioStates
-      else tail (tail marioStates))
+      then [playerStateChange input latestPlayerState] ++ playerStates
+      else tail (tail playerStates))
 
-marioSignal = foldp stepMario [defaultGame.player] input
+playerSignal = foldp stepPlayer [defaultGame.player] input
 --
 
--- PlatformSignal
+-- Platform Signal
 stepPlatform: Input -> [Platform] -> [Platform]
 stepPlatform input platforms = platforms
 
-platformSignal = foldp stepPlatform createPlatforms input
+platformSignal = foldp stepPlatform defaultGame.platforms input
 --
 
 --
-isCollided currentPlayer plat =
-  let 
-      a = {currentPlayer |x <- currentPlayer.x - currentPlayer.w / 2
-                         ,y <- currentPlayer.y - currentPlayer.h / 2}
-      b = {plat |x <- plat.x - plat.w / 2
-               ,y <- plat.y - plat.h / 2}
-      isLeftCollision = a.x + a.w >= b.x
-      isRightCollision = a.x <= b.x + b.w
-      isBottomCollision = a.y + a.h >= b.y
-      isTopCollision = a.y <= b.y + b.h
-  in isLeftCollision && isRightCollision && isBottomCollision && isTopCollision
-
-combineToCollidedPlayer : [Player] -> [Platform] -> [Player]
-combineToCollidedPlayer (mario :: restMarios) platforms = 
-  let collidedPlatforms = filter (isCollided mario) platforms
+checkCollisions : [Player] -> [Platform] -> [Player]
+checkCollisions (player :: restPlayers) platforms = 
+  let collidedPlatforms = filter (isCollided player) platforms
       newPlayer = if (isEmpty collidedPlatforms) 
-                  then {mario | colour <- (rgb 0 0 0), isFalling <- True} 
-                  else {mario | colour <- (rgb 255 255 0)
-                              , vy <- 0
-                              , isFalling <- False}
-  in newPlayer :: restMarios
+                  then { player | colour <- (rgb 0 0 0)
+                                , isFalling <- True } 
+                  else { player | colour <- (rgb 255 255 0)
+                                , vy <- 0
+                                , isFalling <- False}
+  in newPlayer :: restPlayers
 
-collidedPlayerSignal = lift2 combineToCollidedPlayer marioSignal platformSignal
+collidedPlayerSignal = checkCollisions <~ playerSignal ~ platformSignal
 
--- Collision detenction including mario signal 
+-- Collision detenction including player signal 
 
 stepGameState: [Player] -> [Game] -> [Game]
-stepGameState (mario :: restMarios) (gameState :: restGameSates) = 
+stepGameState (player :: _) (gameState :: restGameSates) = 
   {gameState | tick <- gameState.tick + 1
-             , player <- mario
+             , player <- player
              , platforms <- gameState.platforms
              , state <- gameState.state} :: restGameSates
 
@@ -118,6 +124,12 @@ gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
 
 
 -- DISPLAY
+renderPlatform : Platform -> Form
+renderPlatform platform = rect platform.w platform.h |> filled (rgb 124 200 100) 
+                                                     |> move (platform.x, platform.y)
+renderPlatforms platforms = map renderPlatform platforms
+
+renderGround w h = [rect w 50 |> filled (rgb 74 63 41) |> move (0, -38)]
 
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
@@ -131,7 +143,7 @@ render (w',h') (gameState :: _) =
       ([ rect w h  |> filled (rgb 174 238 238),
         rect player.w player.h |> filled col |> move (player.x, player.y),
         toForm (image 35 35 src) |> move (player.x, player.y)
-      ] ++ (renderPlatforms gameState.platforms) ++ [rect w 50 |> filled (rgb 74 63 41) |> move (0, -38)])
+      ] ++ (renderPlatforms gameState.platforms) ++ (renderGround w h))
 
 input = let delta = lift (\t -> t/20) (fps 60)
         in  sampleOn delta (lift2 (,) delta Keyboard.arrows)
