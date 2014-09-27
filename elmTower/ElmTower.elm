@@ -12,21 +12,32 @@ type Game = {
   platforms: [Platform],
   state: State}
 
+type Input = (Float, {x: Int, y: Int})
+
 data State = Waiting | Playing | Dead
 
 -- initial state
 defaultGame = {
   tick = 0,
-  player = { x=0, y=0, w=16, h=28, vx=0, vy=0, dir="right", colour = (rgb 0 0 0), isFalling = False},
+  player = { 
+    x = 0, 
+    y = 0, 
+    w = 16, 
+    h = 28, 
+    vx = 0, 
+    vy = 0, 
+    dir = "right", 
+    colour = (rgb 0 0 0), 
+    isFalling = False },
   platforms = createPlatforms,
   state = Playing }
 
 
 createPlatforms = map (\n -> {
-  x = 30 * n + 10, 
+  x = toFloat (30 * n + 10), 
   y = toFloat ((50 * n + 10) % 280),
   w = 60,
-  h = 10}) tenToOne ++ [{x = 0, y = -38, w = 10000, h = 50}]
+  h = 10}) (range 1 11) ++ [{x = 0, y = -38, w = 10000, h = 50}]
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m = if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -40,16 +51,16 @@ renderPlatform : Platform -> Form
 renderPlatform platform = rect platform.w platform.h |> filled (rgb 124 200 100) 
                                                      |> move (platform.x, platform.y)
                              
-tenToOne = let (_, l) = foldl (\j (i, acc) -> (i+1, (i + 1) :: acc)) (0, []) (repeat 10 1) in l
+range from to = indexedMap (\i el -> from + i) (repeat (to - from) 0) 
 
 renderPlatforms platforms = map (\plat -> renderPlatform plat) platforms
 
 
 -- Mario SIgnal
-marioStateChange: (Float, {x: Int, y: Int}) -> Player -> Player
+marioStateChange: Input -> Player -> Player
 marioStateChange (dt, keys) = jump keys >> gravity dt >> walk keys >> physics dt
 
-stepMario : (Float, {x: Int, y: Int}) -> [Player] -> [Player]
+stepMario : Input -> [Player] -> [Player]
 stepMario input marioStates =
   let lastestMarioState = head marioStates
       (_ , keys) = input
@@ -61,7 +72,7 @@ marioSignal = foldp stepMario [defaultGame.player] input
 --
 
 -- PlatformSignal
-stepPlatform: (Float, {x: Int, y: Int}) -> [Platform] -> [Platform]
+stepPlatform: Input -> [Platform] -> [Platform]
 stepPlatform input platforms = platforms
 
 platformSignal = foldp stepPlatform createPlatforms input
