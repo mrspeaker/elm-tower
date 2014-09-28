@@ -1,14 +1,15 @@
 import Keyboard
 import Window
 import Color
+import Debug
 
 {--
 
-Note on why it's the multi-signal version is not working!
+Note on why it's not working! 
 
 The updated player from collidedPlayerSignal never gets passed back to playerSignal...
 
-We have have four streams in total:
+We have have four signals in total:
 
 playerSignal = foldp stepPlayer [defaultGame.player] input
 platformSignal = foldp stepPlatform defaultGame.platforms input
@@ -44,8 +45,9 @@ type Player = {
 
 type Game = {
   tick: Int,
-  player: Player,
+  --player: Player,
   platforms: [Platform],
+  players: [Player],
   state: State}
 
 type Input = (Float, {x: Int, y: Int})
@@ -58,7 +60,7 @@ range from to = indexedMap (\i el -> from + i) (repeat (to - from) 0)
 defaultGame: Game
 defaultGame = {
   tick = 0,
-  player = { 
+  players = [{ 
     x = 0, 
     y = 0, 
     w = 16, 
@@ -67,7 +69,7 @@ defaultGame = {
     vy = 0, 
     dir = "right", 
     colour = (rgb 0 0 0), 
-    isFalling = False },
+    isFalling = False }],
   platforms = createPlatforms,
   state = Playing }
 
@@ -91,7 +93,7 @@ isCollided entityA entityB =
   in isLeftGreater && isRightLess && isBottomGreater && isTopLess
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
-gravity t m = if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
+gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
 physics t m = { m | x <- m.x + t*m.vx , y <- max 0 (m.y + t*m.vy) }
 walk {x} m = { m | vx <- toFloat x * 2
                  , dir <- if | x < 0     -> "left"
@@ -104,20 +106,22 @@ playerStateChange (dt, keys) = jump keys >> gravity dt >> walk keys >> physics d
 
 stepPlayer : Input -> [Player] -> [Player]
 stepPlayer input playerStates =
-  let latestPlayerState = head playerStates
+  let player = head playerStates
+      -- falling is incorrect (anythign set in checkCollisions not refelcteded here)
+      falling_dbg = Debug.watch("falling-step") player.isFalling
+      vx_dbg = Debug.watch ("vy") player.y
       (_ , keys) = input
   -- If playing, save state else if holding "down" key, then "rewind"
   in (if keys.y >= 0 
-      then [playerStateChange input latestPlayerState] ++ playerStates
+      then playerStateChange input player :: playerStates
       else tail (tail playerStates))
 
-playerSignal = foldp stepPlayer [defaultGame.player] input
+playerSignal = foldp stepPlayer defaultGame.players input
 --
 
 -- Platform Signal
 stepPlatform: Input -> [Platform] -> [Platform]
 stepPlatform input platforms = platforms
-
 platformSignal = foldp stepPlatform defaultGame.platforms input
 --
 
@@ -135,14 +139,16 @@ checkCollisions (player :: restPlayers) platforms =
 
 collidedPlayerSignal = checkCollisions <~ playerSignal ~ platformSignal
 
--- Collision detenction including player signal 
-
+-- Game step
 stepGameState: [Player] -> [Game] -> [Game]
-stepGameState (player :: _) (gameState :: restGameSates) = 
-  {gameState | tick <- gameState.tick + 1
-             , player <- player
-             , platforms <- gameState.platforms
-             , state <- gameState.state} :: restGameSates
+stepGameState players (gameState :: restGameSates) = 
+  -- isFalling is correctly set here. But not passed back to the next frame.
+  let fall_dgb = Debug.watch("falling-game") (head players).isFalling
+  in { gameState | tick <- gameState.tick + 1
+      -- , player <- player
+      , players <- players
+      , platforms <- gameState.platforms
+      , state <- gameState.state} :: restGameSates
 
 gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
 
@@ -159,19 +165,19 @@ renderGround w h = [rect w 50 |> filled (rgb 74 63 41) |> move (0, -38)]
 
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
-      verb = if | gameState.player.isFalling -> "jump"
-                | gameState.player.vx /= 0 -> "walk"
+      player = head gameState.players
+      verb = if | player.isFalling -> "jump"
+                | player.vx /= 0 -> "walk"
                 | otherwise     -> "stand"
-      src = "/imgs/mario/" ++ verb ++ "/" ++ gameState.player.dir ++ ".gif"
-      player = gameState.player
-      col = if gameState.player.vy == 0 then rgb 255 0 0 else rgb 0 0 255
+      src = "/imgs/mario/" ++ verb ++ "/" ++ player.dir ++ ".gif"
+      col = if player.vy == 0 then rgb 255 0 0 else rgb 0 0 255
   in collage w' h'
       ([ rect w h  |> filled (rgb 174 238 238),
         rect player.w player.h |> filled col |> move (player.x, player.y),
-        toForm (image 35 35 src) |> move (player.x, player.y)
+        toForm (image 35 35 src) |> Debug.trace("playerpath") |> move (player.x, player.y)
       ] ++ (renderPlatforms gameState.platforms) ++ (renderGround w h))
 
-input = let delta = lift (\t -> t/20) (fps 60)
+input = let delta = lift (\t -> t/20) (fps 30)
         in  sampleOn delta (lift2 (,) delta Keyboard.arrows)
 
 main = lift2 render Window.dimensions gameStateSignal
