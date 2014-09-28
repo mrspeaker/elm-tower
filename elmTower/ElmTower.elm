@@ -69,7 +69,7 @@ defaultGame = {
     vy = 0, 
     dir = "right", 
     colour = (rgb 0 0 0), 
-    isFalling = False }],
+    isFalling = True }],
   platforms = createPlatforms,
   state = Playing }
 
@@ -78,7 +78,7 @@ createPlatforms = map (\n -> {
   x = toFloat (30 * n + 10), 
   y = toFloat ((50 * n + 10) % 280),
   w = 60,
-  h = 10}) (range 1 11) ++ [{x = 0, y = -38, w = 10000, h = 50}]
+  h = 10}) (range 1 11) ++ [{x = 0, y = -38, w = 2000, h = 50}]
 
 isCollided entityA entityB =
   let 
@@ -110,6 +110,7 @@ stepPlayer input playerStates =
       -- falling is incorrect (anythign set in checkCollisions not refelcteded here)
       falling_dbg = Debug.watch("falling-step") player.isFalling
       vx_dbg = Debug.watch ("vy") player.y
+      len_dbg = Debug.watch ("play len 1:") (length playerStates)
       (_ , keys) = input
   -- If playing, save state else if holding "down" key, then "rewind"
   in (if keys.y >= 0 
@@ -126,8 +127,8 @@ platformSignal = foldp stepPlatform defaultGame.platforms input
 --
 
 --
-checkCollisions : [Player] -> [Platform] -> [Player]
-checkCollisions (player :: restPlayers) platforms = 
+checkCollisions : [Platform] -> [Player] -> [Player]
+checkCollisions platforms (player :: restPlayers) = 
   let collidedPlatforms = filter (isCollided player) platforms
       newPlayer = if (isEmpty collidedPlatforms) 
                   then { player | colour <- (rgb 0 0 0)
@@ -135,15 +136,28 @@ checkCollisions (player :: restPlayers) platforms =
                   else { player | colour <- (rgb 255 255 0)
                                 , vy <- 0
                                 , isFalling <- False}
-  in newPlayer :: restPlayers
+      -- Works exactly the same if I go "[newPlayer]". List is not passed back to stepPlayer.
+      newList = [newPlayer]-- :: restPlayers
+  in newList
+  {-in [{ 
+    x = 0, 
+    y = 0, 
+    w = 16, 
+    h = 28, 
+    vx = 0, 
+    vy = 0, 
+    dir = "right", 
+    colour = (rgb 0 0 0), 
+    isFalling = False }]-}
 
-collidedPlayerSignal = checkCollisions <~ playerSignal ~ platformSignal
+collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
 -- Game step
 stepGameState: [Player] -> [Game] -> [Game]
 stepGameState players (gameState :: restGameSates) = 
   -- isFalling is correctly set here. But not passed back to the next frame.
   let fall_dgb = Debug.watch("falling-game") (head players).isFalling
+      len_dgb = Debug.watch("player len:") (length players)
   in { gameState | tick <- gameState.tick + 1
       -- , player <- player
       , players <- players
@@ -151,8 +165,7 @@ stepGameState players (gameState :: restGameSates) =
       , state <- gameState.state} :: restGameSates
 
 gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
-
--- 
+--
 
 
 -- DISPLAY
@@ -160,7 +173,6 @@ renderPlatform : Platform -> Form
 renderPlatform platform = rect platform.w platform.h |> filled (rgb 124 200 100) 
                                                      |> move (platform.x, platform.y)
 renderPlatforms platforms = map renderPlatform platforms
-
 renderGround w h = [rect w 50 |> filled (rgb 74 63 41) |> move (0, -38)]
 
 render (w',h') (gameState :: _) =
