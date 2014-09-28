@@ -153,6 +153,7 @@ checkCollisions platforms (player :: restPlayers) =
 collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
 -- Game step
+  {-
 stepGameState: [Player] -> [Game] -> [Game]
 stepGameState players (gameState :: restGameSates) = 
   -- isFalling is correctly set here. But not passed back to the next frame.
@@ -163,8 +164,23 @@ stepGameState players (gameState :: restGameSates) =
       , players <- players
       , platforms <- gameState.platforms
       , state <- gameState.state} :: restGameSates
-
+      
 gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
+  -}
+
+  -- This works - 'cause it doesn't use signals!
+stepGameState: Input -> [Game] -> [Game]
+stepGameState input (gameState :: restGameSates) = 
+  let play = stepPlayer input gameState.players
+      plat = stepPlatform input gameState.platforms
+      coll = checkCollisions plat play
+  in { gameState | tick <- gameState.tick + 1
+      -- , player <- player
+      , players <- coll
+      , platforms <- gameState.platforms
+      , state <- gameState.state} :: restGameSates
+
+gameStateSignal = foldp stepGameState [defaultGame] input
 --
 
 
