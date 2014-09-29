@@ -137,7 +137,7 @@ checkCollisions platforms (player :: restPlayers) =
                                 , vy <- 0
                                 , isFalling <- False}
       -- Works exactly the same if I go "[newPlayer]". List is not passed back to stepPlayer.
-      newList = [newPlayer]-- :: restPlayers
+      newList = newPlayer :: restPlayers
   in newList
   {-in [{ 
     x = 0, 
