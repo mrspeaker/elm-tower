@@ -48,6 +48,7 @@ type Game = {
   --player: Player,
   platforms: [Platform],
   players: [Player],
+  rev: Bool,
   state: State}
 
 type Input = (Float, {x: Int, y: Int})
@@ -69,16 +70,17 @@ defaultGame = {
     vy = 0, 
     dir = "right", 
     colour = (rgb 0 0 0), 
-    isFalling = True }],
+    isFalling = False }],
+  rev = False,
   platforms = createPlatforms,
   state = Playing }
 
 createPlatforms : [Platform]
 createPlatforms = map (\n -> {
   x = toFloat (30 * n + 10) - 150, 
-  y = toFloat ((70 * n + 10) % 380),
+  y = toFloat ((80 * n + 10)) - 50,
   w = 60,
-  h = 10}) (range 1 11) ++ [{x = 0, y = -38, w = 2000, h = 50}]
+  h = 10}) (range 1 7) ++ [{x = 0, y = -38, w = 2000, h = 50}]
 
 isCollided : Player -> Platform -> Bool
 isCollided entityA entityB =
@@ -91,7 +93,7 @@ isCollided entityA entityB =
       isRightLess = a.x <= b.x + b.w
       isBottomGreater = a.y + a.h >= b.y
       isTopLess = a.y <= b.y + b.h
-  in a.vy < 0 && isLeftGreater && isRightLess && isBottomGreater && isTopLess
+  in isLeftGreater && isRightLess && isBottomGreater && isTopLess
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -118,13 +120,13 @@ stepPlayer input playerStates =
       then playerStateChange input player :: playerStates
       else tail (tail playerStates))
 
-playerSignal = foldp stepPlayer defaultGame.players input
+-- playerSignal = foldp stepPlayer defaultGame.players input
 --
 
 -- Platform Signal
 stepPlatform_sig: Input -> [Platform] -> [Platform]
 stepPlatform_sig input platforms = platforms
-platformSignal = foldp stepPlatform_sig defaultGame.platforms input
+-- platformSignal = foldp stepPlatform_sig defaultGame.platforms input
 
 stepPlatform input platforms tick = indexedMap (\i plat -> 
   { plat | x <- plat.x + sin((toFloat tick + toFloat (i + 1) * 10) / 20) * 5}) platforms
@@ -135,14 +137,14 @@ checkCollisions : [Platform] -> [Player] -> [Player]
 checkCollisions platforms (player :: restPlayers) = 
   let collidedPlatforms = filter (isCollided player) platforms
       newPlayer = if (isEmpty collidedPlatforms) 
-                  then { player | colour <- (rgb 0 0 0)
+                  then { player | colour <- (rgb 0 255 0)
                                 , isFalling <- True } 
-                  else { player | colour <- (rgb 255 255 0)
+                  else { player | colour <- (rgb 255 0 0)
                                 , vy <- 0
                                 , isFalling <- False}
   in newPlayer :: restPlayers
 
-collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
+-- collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
 -- Game step
   {-
@@ -163,12 +165,14 @@ gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
   -- This works - 'cause it doesn't use signals!
 stepGameState: Input -> [Game] -> [Game]
 stepGameState input (gameState :: restGameSates) = 
-  let play = stepPlayer input gameState.players
+  let (_, keys) = input
+      play = stepPlayer input gameState.players
       plat = stepPlatform input gameState.platforms gameState.tick
       collisionResolution = checkCollisions plat play
   in { gameState | tick <- gameState.tick + 1
       , players <- collisionResolution
       , platforms <- plat
+      , rev <- keys.y < 0
       , state <- gameState.state} :: restGameSates
 
 gameStateSignal = foldp stepGameState [defaultGame] input
@@ -185,14 +189,13 @@ renderGround w h = [rect w 50 |> filled (rgb 74 63 41) |> move (0, -38)]
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
       player = head gameState.players
-      verb = if | player.isFalling -> "jump"
+      verb = if | player.vy /= 0 -> "jump"
                 | player.vx /= 0 -> "walk"
                 | otherwise     -> "stand"
       src = "/imgs/mario/" ++ verb ++ "/" ++ player.dir ++ ".gif"
-      col = if player.vy == 0 then rgb 255 0 0 else rgb 0 0 255
   in collage w' h'
-      ([ rect w h  |> filled (rgb 174 238 238),
-        rect player.w player.h |> filled col |> move (player.x, player.y),
+      ([ rect w h  |> filled (if gameState.rev then rgb 238 238 174 else rgb 174 238 238),
+        --rect player.w player.h |> filled player.colour |> move (player.x, player.y),
         toForm (image 35 35 src) |> move (player.x, player.y)
       ] ++ (renderPlatforms gameState.platforms) ++ (renderGround w h))
 
