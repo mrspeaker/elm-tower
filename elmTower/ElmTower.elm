@@ -75,11 +75,12 @@ defaultGame = {
 
 createPlatforms : [Platform]
 createPlatforms = map (\n -> {
-  x = toFloat (30 * n + 10), 
-  y = toFloat ((50 * n + 10) % 280),
+  x = toFloat (30 * n + 10) - 150, 
+  y = toFloat ((70 * n + 10) % 380),
   w = 60,
   h = 10}) (range 1 11) ++ [{x = 0, y = -38, w = 2000, h = 50}]
 
+isCollided : Player -> Platform -> Bool
 isCollided entityA entityB =
   let 
       a = {entityA | x <- entityA.x - entityA.w / 2
@@ -90,7 +91,7 @@ isCollided entityA entityB =
       isRightLess = a.x <= b.x + b.w
       isBottomGreater = a.y + a.h >= b.y
       isTopLess = a.y <= b.y + b.h
-  in isLeftGreater && isRightLess && isBottomGreater && isTopLess
+  in a.vy < 0 && isLeftGreater && isRightLess && isBottomGreater && isTopLess
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -121,9 +122,12 @@ playerSignal = foldp stepPlayer defaultGame.players input
 --
 
 -- Platform Signal
-stepPlatform: Input -> [Platform] -> [Platform]
-stepPlatform input platforms = platforms
-platformSignal = foldp stepPlatform defaultGame.platforms input
+stepPlatform_sig: Input -> [Platform] -> [Platform]
+stepPlatform_sig input platforms = platforms
+platformSignal = foldp stepPlatform_sig defaultGame.platforms input
+
+stepPlatform input platforms tick = indexedMap (\i plat -> 
+  { plat | x <- plat.x + sin((toFloat tick + toFloat (i + 1) * 10) / 20) * 5}) platforms
 --
 
 --
@@ -136,19 +140,7 @@ checkCollisions platforms (player :: restPlayers) =
                   else { player | colour <- (rgb 255 255 0)
                                 , vy <- 0
                                 , isFalling <- False}
-      -- Works exactly the same if I go "[newPlayer]". List is not passed back to stepPlayer.
-      newList = newPlayer :: restPlayers
-  in newList
-  {-in [{ 
-    x = 0, 
-    y = 0, 
-    w = 16, 
-    h = 28, 
-    vx = 0, 
-    vy = 0, 
-    dir = "right", 
-    colour = (rgb 0 0 0), 
-    isFalling = False }]-}
+  in newPlayer :: restPlayers
 
 collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
@@ -172,12 +164,11 @@ gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
 stepGameState: Input -> [Game] -> [Game]
 stepGameState input (gameState :: restGameSates) = 
   let play = stepPlayer input gameState.players
-      plat = stepPlatform input gameState.platforms
-      coll = checkCollisions plat play
+      plat = stepPlatform input gameState.platforms gameState.tick
+      collisionResolution = checkCollisions plat play
   in { gameState | tick <- gameState.tick + 1
-      -- , player <- player
-      , players <- coll
-      , platforms <- gameState.platforms
+      , players <- collisionResolution
+      , platforms <- plat
       , state <- gameState.state} :: restGameSates
 
 gameStateSignal = foldp stepGameState [defaultGame] input
@@ -202,7 +193,7 @@ render (w',h') (gameState :: _) =
   in collage w' h'
       ([ rect w h  |> filled (rgb 174 238 238),
         rect player.w player.h |> filled col |> move (player.x, player.y),
-        toForm (image 35 35 src) |> Debug.trace("playerpath") |> move (player.x, player.y)
+        toForm (image 35 35 src) |> move (player.x, player.y)
       ] ++ (renderPlatforms gameState.platforms) ++ (renderGround w h))
 
 input = let delta = lift (\t -> t/20) (fps 30)
