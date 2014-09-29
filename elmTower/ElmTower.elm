@@ -64,8 +64,8 @@ defaultGame = {
   players = [{ 
     x = 0, 
     y = 0, 
-    w = 16, 
-    h = 28, 
+    w = 24, 
+    h = 40, 
     vx = 0, 
     vy = 0, 
     dir = "right", 
@@ -80,7 +80,7 @@ createPlatforms = map (\n -> {
   x = toFloat (30 * n + 10) - 150, 
   y = toFloat ((80 * n + 10)) - 50,
   w = 60,
-  h = 10}) (range 1 7) ++ [{x = 0, y = -38, w = 2000, h = 50}]
+  h = 5}) (range 1 7) ++ [{x = 0, y = -44, w = 2000, h = 50}]
 
 isCollided : Player -> Platform -> Bool
 isCollided entityA entityB =
@@ -181,10 +181,22 @@ gameStateSignal = foldp stepGameState [defaultGame] input
 
 -- DISPLAY
 renderPlatform : Platform -> Form
-renderPlatform platform = rect platform.w platform.h |> filled (rgb 124 200 100) 
+renderPlatform platform = rect platform.w platform.h |> filled (rgb 252 205 1)
                                                      |> move (platform.x, platform.y)
+renderPlatformStroke platform = rect platform.w 12 |> filled (rgb 152 105 1)
+                                                     |> move (platform.x, platform.y - 5)
 renderPlatforms platforms = map renderPlatform platforms
-renderGround w h = [rect w 50 |> filled (rgb 74 63 41) |> move (0, -38)]
+renderPlatformsStroke platforms = map renderPlatformStroke platforms
+renderGround w h = [rect w (h / 2) |> filled (rgb 136 95 0) |> move (0, -(h / 4) - 20)]
+
+grad : Gradient
+grad =
+    linear (0,60) (0,-60)
+        [ (0, rgb 149 195 255)
+        , (0.79, white)
+        , (0.8, rgb 38 192 0)
+        , (1, white)
+        ]
 
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
@@ -194,10 +206,10 @@ render (w',h') (gameState :: _) =
                 | otherwise     -> "stand"
       src = "/imgs/mario/" ++ verb ++ "/" ++ player.dir ++ ".gif"
   in collage w' h'
-      ([ rect w h  |> filled (if gameState.rev then rgb 238 238 174 else rgb 174 238 238),
+      ([ rect w h  |> (if gameState.rev then filled (rgb 149  195 83) else gradient grad),
         --rect player.w player.h |> filled player.colour |> move (player.x, player.y),
-        toForm (image 35 35 src) |> move (player.x, player.y)
-      ] ++ (renderPlatforms gameState.platforms) ++ (renderGround w h))
+        toForm (image 48 48 src) |> move (player.x, player.y)
+      ] ++ (renderPlatforms gameState.platforms) ++ (renderPlatformsStroke gameState.platforms) ++ (renderGround w h))
 
 input = let delta = lift (\t -> t/20) (fps 30)
         in  sampleOn delta (lift2 (,) delta Keyboard.arrows)
