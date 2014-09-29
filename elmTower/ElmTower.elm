@@ -198,7 +198,7 @@ grad =
         , (1, white)
         ]
 
-bush = (image 100 40 "https://raw.githubusercontent.com/mrspeaker/elm-tower/master/elmTower/imgs/mario/walk/left_big.gif")
+bush = image 420 69 "https://raw.githubusercontent.com/mrspeaker/elm-tower/master/elmTower/imgs/bush.png"
 
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
@@ -210,6 +210,7 @@ render (w',h') (gameState :: _) =
   in collage w' h'
       ([ rect w h  |> (if gameState.rev then filled (rgb 149  195 83) else gradient grad),
         --rect player.w player.h |> filled player.colour |> move (player.x, player.y),
+        toForm (bush) |> move (-50, 16),
         toForm (image 48 48 src) |> move (player.x, player.y)
       ] ++ (renderPlatforms gameState.platforms) ++ (renderPlatformsStroke gameState.platforms) ++ (renderGround w h))
 
