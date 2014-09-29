@@ -198,6 +198,8 @@ grad =
         , (1, white)
         ]
 
+bush = (image 100 40 "https://raw.githubusercontent.com/mrspeaker/elm-tower/master/elmTower/imgs/mario/walk/left_big.gif")
+
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
       player = head gameState.players
