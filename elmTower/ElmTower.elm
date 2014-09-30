@@ -93,7 +93,8 @@ isCollided entityA entityB =
       isRightLess = a.x <= b.x + b.w
       isBottomGreater = a.y + a.h >= b.y
       isTopLess = a.y <= b.y + b.h
-  in isLeftGreater && isRightLess && isBottomGreater && isTopLess
+      collided = isLeftGreater && isRightLess && isBottomGreater && isTopLess
+  in a.vy <= 0 && collided && b.y - a.y < a.h / 2
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -141,8 +142,11 @@ checkCollisions platforms (player :: restPlayers) =
                                 , isFalling <- True } 
                   else { player | colour <- (rgb 255 0 0)
                                 , vy <- 0
+                                , y <- snap_y player (head collidedPlatforms) 
                                 , isFalling <- False}
   in newPlayer :: restPlayers
+
+snap_y player platform = platform.y + (platform.h / 2) + (player.h / 2)
 
 -- collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
@@ -199,6 +203,7 @@ grad =
         ]
 
 bush = image 420 69 "https://raw.githubusercontent.com/mrspeaker/elm-tower/master/elmTower/imgs/bush.png"
+--rockTex = textured "https://raw.githubusercontent.com/mrspeaker/elm-tower/master/elmTower/imgs/rock.png"
 
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
