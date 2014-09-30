@@ -94,7 +94,9 @@ isCollided entityA entityB =
       isBottomGreater = a.y + a.h >= b.y
       isTopLess = a.y <= b.y + b.h
       collided = isLeftGreater && isRightLess && isBottomGreater && isTopLess
-  in a.vy <= 0 && collided && b.y - a.y < a.h / 2
+      -- This shouldn't be in the isCollided test - "collision specific" ;)
+      hitTopOfPlatform = a.vy <= 0 && b.y - a.y < a.h / 2
+  in collided && hitTopOfPlatform
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -137,16 +139,15 @@ stepPlatform input platforms tick = indexedMap (\i plat ->
 checkCollisions : [Platform] -> [Player] -> [Player]
 checkCollisions platforms (player :: restPlayers) = 
   let collidedPlatforms = filter (isCollided player) platforms
+      snap_y platform = platform.y + (platform.h / 2) + (player.h / 2)
       newPlayer = if (isEmpty collidedPlatforms) 
                   then { player | colour <- (rgb 0 255 0)
                                 , isFalling <- True } 
                   else { player | colour <- (rgb 255 0 0)
                                 , vy <- 0
-                                , y <- snap_y player (head collidedPlatforms) 
+                                , y <- snap_y (head collidedPlatforms) 
                                 , isFalling <- False}
   in newPlayer :: restPlayers
-
-snap_y player platform = platform.y + (platform.h / 2) + (player.h / 2)
 
 -- collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
