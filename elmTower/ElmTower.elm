@@ -73,9 +73,9 @@ defaultGame = {
     dir = "right", 
     colour = (rgb 0 0 0), 
     isFalling = False }],
-  pickups = [{ x = -150, y = 200, w = 20, h = 20}],
   rev = False,
   platforms = createPlatforms,
+  pickups = createPickups,
   state = Playing }
 
 createPlatforms : [Platform]
@@ -84,6 +84,12 @@ createPlatforms = map (\n -> {
   y = toFloat ((80 * n + 10)) - 50,
   w = 60,
   h = 5}) (range 1 7) ++ [{x = 0, y = -44, w = 2000, h = 50}]
+
+createPickups = map (\n -> {
+  x = toFloat (40 * n + 10) - 190, 
+  y = toFloat ((80 * n + 10)) - 20,
+  w = 18,
+  h = 18}) (range 1 7)
 
 isCollided : Player -> Platform -> Bool
 isCollided entityA entityB =
@@ -133,13 +139,15 @@ stepPlatform_sig input platforms = platforms
 
 stepPlatform input platforms tick = indexedMap (\i plat -> 
   { plat | x <- plat.x + sin((toFloat tick + toFloat (i + 1) * 10) / 20) * 5}) platforms
+
+stepPickup input pickups tick = map (\p -> { p | y <- p.y + sin(toFloat tick / 8)}) pickups
 --
 
 --
-checkCollisions : [Platform] -> [Pickup] -> [Player] -> [Player]
+checkCollisions : [Platform] -> [Pickup] -> [Player] -> ([Player], [Pickup])
 checkCollisions platforms pickups (player :: restPlayers) = 
   let collidedPlatforms = filter (isCollided player) platforms
-      collidedPickups = filter (isCollided player) pickups
+      collidedPickups = filter (\p -> not (isCollided player p)) pickups
       fallingAndTop plat = player.vy <= 0 && plat.y - player.y < player.h / 2
       collidedTop = if (isEmpty collidedPlatforms) then False else fallingAndTop (head collidedPlatforms)
       snap_y platform = platform.y + (platform.h / 2) + (player.h / 2)
@@ -176,7 +184,8 @@ stepGameState input (gameState :: restGameSates) =
   let (_, keys) = input
       play = stepPlayer input gameState.playerStates
       plat = stepPlatform input gameState.platforms gameState.tick
-      (collisionResolution, pickups) = checkCollisions plat gameState.pickups play
+      picks = stepPickup input gameState.pickups gameState.tick
+      (collisionResolution, pickups) = checkCollisions plat picks play
   in { gameState | tick <- gameState.tick + 1
       , playerStates <- collisionResolution
       , platforms <- plat
