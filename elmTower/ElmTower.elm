@@ -96,10 +96,7 @@ isCollided entityA entityB =
       isRightLess = a.x <= b.x + b.w
       isBottomGreater = a.y + a.h >= b.y
       isTopLess = a.y <= b.y + b.h
-      collided = isLeftGreater && isRightLess && isBottomGreater && isTopLess
-      -- This shouldn't be in the isCollided test - "collision specific" ;)
-      hitTopOfPlatform = a.vy <= 0 && b.y - a.y < a.h / 2
-  in collided && hitTopOfPlatform
+  in isLeftGreater && isRightLess && isBottomGreater && isTopLess
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
 gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
@@ -139,18 +136,21 @@ stepPlatform input platforms tick = indexedMap (\i plat ->
 --
 
 --
-checkCollisions : [Platform] -> [Player] -> [Player]
-checkCollisions platforms (player :: restPlayers) = 
+checkCollisions : [Platform] -> [Pickup] -> [Player] -> [Player]
+checkCollisions platforms pickups (player :: restPlayers) = 
   let collidedPlatforms = filter (isCollided player) platforms
+      collidedPickups = filter (isCollided player) pickups
+      fallingAndTop plat = player.vy <= 0 && plat.y - player.y < player.h / 2
+      collidedTop = if (isEmpty collidedPlatforms) then False else fallingAndTop (head collidedPlatforms)
       snap_y platform = platform.y + (platform.h / 2) + (player.h / 2)
-      newPlayer = if (isEmpty collidedPlatforms) 
+      newPlayer = if not collidedTop 
                   then { player | colour <- (rgb 0 255 0)
                                 , isFalling <- True } 
                   else { player | colour <- (rgb 255 0 0)
                                 , vy <- 0
                                 , y <- snap_y (head collidedPlatforms)
                                 , isFalling <- False}
-  in newPlayer :: restPlayers
+  in (newPlayer :: restPlayers, collidedPickups)
 
 -- collidedPlayerSignal = checkCollisions <~ platformSignal ~ playerSignal
 
@@ -176,10 +176,11 @@ stepGameState input (gameState :: restGameSates) =
   let (_, keys) = input
       play = stepPlayer input gameState.playerStates
       plat = stepPlatform input gameState.platforms gameState.tick
-      collisionResolution = checkCollisions plat play
+      (collisionResolution, pickups) = checkCollisions plat gameState.pickups play
   in { gameState | tick <- gameState.tick + 1
       , playerStates <- collisionResolution
       , platforms <- plat
+      , pickups <- pickups
       , rev <- keys.y < 0
       , state <- gameState.state} :: restGameSates
 
