@@ -31,6 +31,7 @@ isFalling (and color) changing that is done in collidedPlayerSignal is never pas
 
 -- MODELs
 type Platform = { x: Float, y: Float, w: Float, h: Float }
+type Pickup = { x: Float, y: Float, w: Float, h: Float }
 
 type Player = { 
   x: Float, 
@@ -48,6 +49,7 @@ type Game = {
   --player: Player,
   platforms: [Platform],
   playerStates: [Player],
+  pickups: [Pickup],
   rev: Bool,
   state: State}
 
@@ -71,6 +73,7 @@ defaultGame = {
     dir = "right", 
     colour = (rgb 0 0 0), 
     isFalling = False }],
+  pickups = [{ x = -150, y = 200, w = 20, h = 20}],
   rev = False,
   platforms = createPlatforms,
   state = Playing }
@@ -188,11 +191,13 @@ gameStateSignal = foldp stepGameState [defaultGame] input
 renderPlatform : Platform -> Form
 renderPlatform platform = rect platform.w platform.h |> filled (rgb 252 205 1)
                                                      |> move (platform.x, platform.y)
-renderPlatformStroke platform = oval platform.w 12  |> filled (rgb 152 105 1)
+renderPlatformStroke platform = rect platform.w 12  |> filled (rgb 152 105 1)
                                                     |> move (platform.x, platform.y - 5)
 renderPlatforms platforms = map renderPlatform platforms
 renderPlatformsStroke platforms = map renderPlatformStroke platforms
 renderGround w h = [rect w (h / 2) |> filled (rgb 136 95 0) |> move (0, -(h / 4) - 20)]
+
+renderPickups pickups = map (\p -> oval p.w p.h |> filled (rgb 235 234 1) |> move (p.x, p.y)) pickups
 
 grad : Gradient
 grad =
@@ -218,7 +223,11 @@ render (w',h') (gameState :: _) =
         --rect player.w player.h |> filled player.colour |> move (player.x, player.y),
         toForm (bush) |> move (-50, 16),
         toForm (image 48 48 src) |> move (player.x, player.y)
-      ] ++ (renderPlatforms gameState.platforms) ++ (renderPlatformsStroke gameState.platforms) ++ (renderGround w h))
+      ] ++ 
+        (renderPlatforms gameState.platforms) ++ 
+        (renderPlatformsStroke gameState.platforms) ++ 
+        (renderPickups gameState.pickups) ++ 
+        (renderGround w h))
 
 input = let delta = lift (\t -> t/20) (fps 30)
         in  sampleOn delta (lift2 (,) delta Keyboard.arrows)
