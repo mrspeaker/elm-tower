@@ -47,7 +47,7 @@ type Game = {
   tick: Int,
   --player: Player,
   platforms: [Platform],
-  players: [Player],
+  playerStates: [Player],
   rev: Bool,
   state: State}
 
@@ -61,7 +61,7 @@ range from to = indexedMap (\i el -> from + i) (repeat (to - from) 0)
 defaultGame: Game
 defaultGame = {
   tick = 0,
-  players = [{ 
+  playerStates = [{ 
     x = 0, 
     y = 0, 
     w = 24, 
@@ -145,7 +145,7 @@ checkCollisions platforms (player :: restPlayers) =
                                 , isFalling <- True } 
                   else { player | colour <- (rgb 255 0 0)
                                 , vy <- 0
-                                , y <- snap_y (head collidedPlatforms) 
+                                , y <- snap_y (head collidedPlatforms)
                                 , isFalling <- False}
   in newPlayer :: restPlayers
 
@@ -171,11 +171,11 @@ gameStateSignal = foldp stepGameState [defaultGame] collidedPlayerSignal
 stepGameState: Input -> [Game] -> [Game]
 stepGameState input (gameState :: restGameSates) = 
   let (_, keys) = input
-      play = stepPlayer input gameState.players
+      play = stepPlayer input gameState.playerStates
       plat = stepPlatform input gameState.platforms gameState.tick
       collisionResolution = checkCollisions plat play
   in { gameState | tick <- gameState.tick + 1
-      , players <- collisionResolution
+      , playerStates <- collisionResolution
       , platforms <- plat
       , rev <- keys.y < 0
       , state <- gameState.state} :: restGameSates
@@ -188,8 +188,8 @@ gameStateSignal = foldp stepGameState [defaultGame] input
 renderPlatform : Platform -> Form
 renderPlatform platform = rect platform.w platform.h |> filled (rgb 252 205 1)
                                                      |> move (platform.x, platform.y)
-renderPlatformStroke platform = rect platform.w 12 |> filled (rgb 152 105 1)
-                                                     |> move (platform.x, platform.y - 5)
+renderPlatformStroke platform = oval platform.w 12  |> filled (rgb 152 105 1)
+                                                    |> move (platform.x, platform.y - 5)
 renderPlatforms platforms = map renderPlatform platforms
 renderPlatformsStroke platforms = map renderPlatformStroke platforms
 renderGround w h = [rect w (h / 2) |> filled (rgb 136 95 0) |> move (0, -(h / 4) - 20)]
@@ -208,7 +208,7 @@ bush = image 420 69 "https://raw.githubusercontent.com/mrspeaker/elm-tower/maste
 
 render (w',h') (gameState :: _) =
   let (w,h) = (toFloat w', toFloat h')
-      player = head gameState.players
+      player = head gameState.playerStates
       verb = if | player.vy /= 0 -> "jump"
                 | player.vx /= 0 -> "walk"
                 | otherwise     -> "stand"
