@@ -66,8 +66,8 @@ defaultGame = {
   playerStates = [{ 
     x = 0, 
     y = 0, 
-    w = 24, 
-    h = 40, 
+    w = 18, 
+    h = 34, 
     vx = 0, 
     vy = 0, 
     dir = "right", 
@@ -80,7 +80,7 @@ defaultGame = {
 
 createPlatforms : [Platform]
 createPlatforms = map (\n -> {
-  x = toFloat (30 * n + 10) - 150, 
+  x = toFloat (60 * n + 10) - 200,
   y = toFloat ((80 * n + 10)) - 50,
   w = 60,
   h = 5}) (range 1 7) ++ [{x = 0, y = -44, w = 2000, h = 50}]
@@ -105,8 +105,8 @@ isCollided entityA entityB =
   in isLeftGreater && isRightLess && isBottomGreater && isTopLess
 
 jump {y} m = if y > 0 && (not m.isFalling || m.y == 0) then { m | vy <- 6} else m
-gravity t m =if m.y > 0 && m.isFalling then { m | vy <- m.vy - t/4 } else m
-physics t m = { m | x <- m.x + t*m.vx , y <- max 0 (m.y + t*m.vy) }
+gravity t m =if m.isFalling then { m | vy <- m.vy - t/4 } else m
+physics t m = { m | x <- m.x + t*m.vx , y <- m.y + t*m.vy }
 walk {x} m = { m | vx <- toFloat x * 2
                  , dir <- if | x < 0     -> "left"
                              | x > 0     -> "right"
@@ -226,13 +226,13 @@ render (w',h') (gameState :: _) =
       player = head gameState.playerStates
       verb = if | player.vy /= 0 -> "jump"
                 | player.vx /= 0 -> "walk"
-                | otherwise     -> "stand"
+                | otherwise      -> "stand"
       src = "/imgs/mario/" ++ verb ++ "/" ++ player.dir ++ ".gif"
   in collage w' h'
       ([ rect w h  |> (if gameState.rev then filled (rgb 149  195 83) else gradient grad),
         --rect player.w player.h |> filled player.colour |> move (player.x, player.y),
         toForm (bush) |> move (-50, 16),
-        toForm (image 48 48 src) |> move (player.x, player.y)
+        toForm (image 48 48 src) |> Debug.trace ("pla") |> move (player.x, player.y)
       ] ++ 
         (renderPlatforms gameState.platforms) ++ 
         (renderPlatformsStroke gameState.platforms) ++ 
